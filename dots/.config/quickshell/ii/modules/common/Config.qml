@@ -259,6 +259,13 @@ Singleton {
                     property bool showScreenRecord: false
                 }
                 property JsonObject workspaces: JsonObject {
+                    property bool dynamicWorkspaces: false // AeroSpace style: show only occupied + active workspaces
+                    property list<string> workspaceNames: [
+                        "C", "V", "D", "P", "A", "T", "Z", "S",
+                        "1", "2", "3", "4", "5", "6", "7", "8", "9",
+                        "B", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "Q", "R", "U", "W", "X", "Y"
+                    ]
+                    property bool showActiveEvenIfEmpty: true
                     property bool monochromeIcons: true
                     property int shown: 10
                     property bool showAppIcons: true

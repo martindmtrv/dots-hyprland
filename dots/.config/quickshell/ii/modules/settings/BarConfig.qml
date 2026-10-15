@@ -256,6 +256,15 @@ ContentPage {
         title: Translation.tr("Workspaces")
 
         ConfigSwitch {
+            buttonIcon: "shapes"
+            text: Translation.tr('Dynamic workspaces (Aerospace style)')
+            checked: Config.options?.bar?.workspaces?.dynamicWorkspaces ?? false
+            onCheckedChanged: {
+                Config.options.bar.workspaces.dynamicWorkspaces = checked;
+            }
+        }
+
+        ConfigSwitch {
             buttonIcon: "counter_1"
             text: Translation.tr('Always show numbers')
             checked: Config.options.bar.workspaces.alwaysShowNumbers

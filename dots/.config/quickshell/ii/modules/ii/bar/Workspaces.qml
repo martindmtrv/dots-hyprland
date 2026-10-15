@@ -30,7 +30,8 @@ ButtonMouseArea {
     property real workspaceIconSizeShrinked: workspaceButtonWidth * 0.55
     property real workspaceIconOpacityShrinked: 1
     property real workspaceIconMarginShrinked: -4
-    property int workspaceIndexInGroup: (monitor?.activeWorkspace?.id - 1) % wsModel.shownCount
+    property int effectiveModelCount: wsModel.dynamicMode ? wsModel.visibleWorkspaces.length : wsModel.shownCount
+    property int workspaceIndexInGroup: wsModel.dynamicMode ? wsModel.activeVisibleIndex : ((monitor?.activeWorkspace?.id - 1) % wsModel.shownCount)
     property real specialTextSize: workspaceButtonWidth * 0.5
 
     Layout.alignment: vertical ? Qt.AlignHCenter : Qt.AlignVCenter
@@ -50,11 +51,20 @@ ButtonMouseArea {
     hoverEnabled: true
     property int hoverIndex: {
         const position = root.vertical ? mouseY : mouseX;
-        return Math.floor(position / root.workspaceButtonWidth);
+        const idx = Math.floor(position / root.workspaceButtonWidth);
+        const maxIdx = Math.max(0, root.effectiveModelCount - 1);
+        return Math.max(0, Math.min(idx, maxIdx));
     }
 
     function switchWorkspaceToHovered() {
-        Hyprland.dispatch(`hl.dsp.focus({workspace = ${wsModel.getWorkspaceIdAt(hoverIndex)}})`);
+        if (wsModel.dynamicMode) {
+            const targetWs = wsModel.visibleWorkspaces[hoverIndex];
+            if (targetWs) {
+                Hyprland.dispatch(`hl.dsp.focus({workspace = ${targetWs.wsId}})`);
+            }
+        } else {
+            Hyprland.dispatch(`hl.dsp.focus({workspace = ${wsModel.getWorkspaceIdAt(hoverIndex)}})`);
+        }
     }
 
     function toggleSpecial() {
@@ -70,10 +80,24 @@ ButtonMouseArea {
             toggleSpecial()
     }
     onWheel: event => {
-        if (event.angleDelta.y < 0)
-            Hyprland.dispatch(`hl.dsp.focus({workspace = "r+1"})`);
-        else if (event.angleDelta.y > 0)
-            Hyprland.dispatch(`hl.dsp.focus({workspace = "r-1"})`);
+        if (wsModel.dynamicMode && wsModel.visibleWorkspaces.length > 0) {
+            const currentIdx = wsModel.activeVisibleIndex;
+            let nextIdx = currentIdx;
+            if (event.angleDelta.y < 0) {
+                nextIdx = (currentIdx + 1) % wsModel.visibleWorkspaces.length;
+            } else if (event.angleDelta.y > 0) {
+                nextIdx = (currentIdx - 1 + wsModel.visibleWorkspaces.length) % wsModel.visibleWorkspaces.length;
+            }
+            const targetWs = wsModel.visibleWorkspaces[nextIdx];
+            if (targetWs) {
+                Hyprland.dispatch(`hl.dsp.focus({workspace = ${targetWs.wsId}})`);
+            }
+        } else {
+            if (event.angleDelta.y < 0)
+                Hyprland.dispatch(`hl.dsp.focus({workspace = "r+1"})`);
+            else if (event.angleDelta.y > 0)
+                Hyprland.dispatch(`hl.dsp.focus({workspace = "r-1"})`);
+        }
     }
 
     // Indications
@@ -108,14 +132,14 @@ ButtonMouseArea {
             visible: false
 
             Repeater {
-                model: wsModel.shownCount
+                model: root.effectiveModelCount
                 delegate: Item {
                     id: wsBg
                     required property int index
-                    readonly property int wsId: wsModel.getWorkspaceIdAt(index)
-                    property bool currentOccupied: wsModel.occupied[index] && wsId != wsModel.fakeWorkspace
-                    property bool previousOccupied: index > 0 && wsModel.occupied[index - 1] && (wsId - 1) != wsModel.fakeWorkspace
-                    property bool nextOccupied: index < wsModel.shownCount - 1 && wsModel.occupied[index + 1] && (wsId + 1) != wsModel.fakeWorkspace
+                    readonly property int wsId: wsModel.dynamicMode ? (wsModel.visibleWorkspaces[index]?.wsId ?? 1) : wsModel.getWorkspaceIdAt(index)
+                    property bool currentOccupied: wsModel.dynamicMode ? (wsModel.visibleWorkspaces[index]?.occupied ?? false) : (wsModel.occupied[index] && wsId != wsModel.fakeWorkspace)
+                    property bool previousOccupied: index > 0 && (wsModel.dynamicMode ? (wsModel.visibleWorkspaces[index - 1]?.occupied ?? false) : (wsModel.occupied[index - 1] && (wsId - 1) != wsModel.fakeWorkspace))
+                    property bool nextOccupied: index < root.effectiveModelCount - 1 && (wsModel.dynamicMode ? (wsModel.visibleWorkspaces[index + 1]?.occupied ?? false) : (wsModel.occupied[index + 1] && (wsId + 1) != wsModel.fakeWorkspace))
                     implicitWidth: root.workspaceButtonWidth
                     implicitHeight: root.workspaceButtonWidth
 
@@ -189,7 +213,7 @@ ButtonMouseArea {
             layer.enabled: true // For the masking
 
             Repeater {
-                model: wsModel.shownCount
+                model: root.effectiveModelCount
                 delegate: NumberWorkspaceItem {}
             }
         }
@@ -213,10 +237,12 @@ ButtonMouseArea {
             z: 6
 
             Repeater {
-                model: wsModel.shownCount
+                model: root.effectiveModelCount
                 delegate: WorkspaceItem {
                     id: wsApp
-                    property var biggestWindow: wsModel.biggestWindow[index]
+                    property var biggestWindow: wsModel.dynamicMode
+                        ? HyprlandData.biggestWindowForWorkspace(wsModel.visibleWorkspaces[index]?.wsId)
+                        : wsModel.biggestWindow[index]
                     property var mainAppIconSource: Quickshell.iconPath(AppSearch.guessIcon(biggestWindow?.class), "image-missing")
 
                     AppIcon {
@@ -295,7 +321,7 @@ ButtonMouseArea {
             anchors.centerIn: parent
             property real undirectionalWidth: root.activeWorkspaceSize
             property real undirectionalLength: {
-                const base = root.workspaceButtonWidth * Math.min(1.35, wsModel.shownCount); // Who tf only configures only 2 workspaces shown anyway?
+                const base = root.workspaceButtonWidth * Math.min(1.35, root.effectiveModelCount); // Who tf only configures only 2 workspaces shown anyway?
                 if (root.vertical)
                     return base;
                 return specialWsText.implicitWidth + undirectionalWidth;
@@ -360,16 +386,18 @@ ButtonMouseArea {
 
     component WorkspaceItem: Item {
         required property int index
-        readonly property int wsId: wsModel.getWorkspaceIdAt(index)
+        readonly property int wsId: wsModel.dynamicMode ? (wsModel.visibleWorkspaces[index]?.wsId ?? 1) : wsModel.getWorkspaceIdAt(index)
         implicitWidth: root.vertical ? root.barThickness : root.workspaceButtonWidth
         implicitHeight: root.vertical ? root.workspaceButtonWidth : root.barThickness
     }
 
     component NumberWorkspaceItem: WorkspaceItem {
         id: wsNum
-        property bool hasBiggestWindow: !!wsModel.biggestWindow[index]
-        property int wsId: wsModel.getWorkspaceIdAt(index)
-        property color contentColor: (wsModel.occupied[wsNum.index] && wsId !== wsModel.fakeWorkspace) ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1Inactive
+        property bool hasBiggestWindow: wsModel.dynamicMode
+            ? !!HyprlandData.biggestWindowForWorkspace(wsNum.wsId)
+            : !!wsModel.biggestWindow[index]
+        property int wsId: wsModel.dynamicMode ? (wsModel.visibleWorkspaces[index]?.wsId ?? 1) : wsModel.getWorkspaceIdAt(index)
+        property color contentColor: (wsModel.dynamicMode ? (wsModel.visibleWorkspaces[index]?.occupied ?? false) : (wsModel.occupied[wsNum.index] && wsId !== wsModel.fakeWorkspace)) ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1Inactive
         property bool showingNumbers: {
             if (root.superPressAndHeld)
                 return true;
@@ -399,7 +427,7 @@ ButtonMouseArea {
                     family: Config.options?.bar.workspaces.useNerdFont ? Appearance.font.family.iconNerd : defaultFont
                 }
                 color: wsNum.contentColor
-                text: Config.options?.bar.workspaces.numberMap[wsNum.wsId - 1] || wsNum.wsId
+                text: wsModel.dynamicMode ? (wsModel.visibleWorkspaces[index]?.name ?? "") : (Config.options?.bar.workspaces.numberMap[wsNum.wsId - 1] || wsNum.wsId)
             }
         }
     }
