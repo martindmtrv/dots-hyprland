@@ -12,10 +12,14 @@ local workspace_mod = "ALT"
 local workspace_move_mod = "ALT + SHIFT"
 
 -- Single Alt tap to toggle overview (same as single Super tap)
+pcall(function() hl.unbind("ALT + Alt_L") end)
+pcall(function() hl.unbind("ALT + Alt_R") end)
 hl.bind("ALT + Alt_L", hl.dsp.global("quickshell:searchToggleRelease"), { description = "AeroSpace: Toggle overview" })
 hl.bind("ALT + Alt_R", hl.dsp.global("quickshell:searchToggleRelease"))
 
 -- Hold Alt to preview workspace names/numbers on the bar (same as holding Super)
+pcall(function() hl.unbind("Alt_L") end)
+pcall(function() hl.unbind("Alt_R") end)
 hl.bind("Alt_L", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true })
 hl.bind("Alt_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true })
 hl.bind("Alt_L", hl.dsp.global("quickshell:workspaceNumber"),
@@ -69,18 +73,35 @@ local all_workspace_keys = {
     "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
 }
 
+local move_locked = false
+
 for _, key in ipairs(all_workspace_keys) do
     local id = get_workspace_id(key)
     if id then
+        local bind_key = string.lower(key)
+
+        -- Ensure no duplicate binds remain across config reloads
+        pcall(function() hl.unbind(workspace_mod .. " + " .. key) end)
+        pcall(function() hl.unbind(workspace_mod .. " + " .. bind_key) end)
+        pcall(function() hl.unbind(workspace_move_mod .. " + " .. key) end)
+        pcall(function() hl.unbind(workspace_move_mod .. " + " .. bind_key) end)
+
         -- Focus workspace: ALT + <key>
-        hl.bind(workspace_mod .. " + " .. key, function()
+        hl.bind(workspace_mod .. " + " .. bind_key, function()
             hl.dispatch(hl.dsp.global("quickshell:searchToggleReleaseInterrupt"))
             hl.dispatch(hl.dsp.focus({ workspace = id }))
         end, { description = "AeroSpace: Focus workspace " .. key })
 
         -- Move window to workspace: ALT + SHIFT + <key>
-        hl.bind(workspace_move_mod .. " + " .. key, function()
+        hl.bind(workspace_move_mod .. " + " .. bind_key, function()
             hl.dispatch(hl.dsp.global("quickshell:searchToggleReleaseInterrupt"))
+            if move_locked then
+                return
+            end
+            move_locked = true
+            hl.timer(function()
+                move_locked = false
+            end, { timeout = 200, type = "oneshot" })
             hl.dispatch(hl.dsp.window.move({ workspace = id, follow = false }))
         end, { description = "AeroSpace: Move to workspace " .. key })
 
