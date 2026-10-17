@@ -11,6 +11,18 @@ hl.bind("CTRL+SUPER+ALT+Slash", hl.dsp.exec_cmd("xdg-open ~/.config/hypr/custom/
 local workspace_mod = "ALT"
 local workspace_move_mod = "ALT + SHIFT"
 
+-- Single Alt tap to toggle overview (same as single Super tap)
+hl.bind("ALT + Alt_L", hl.dsp.global("quickshell:searchToggleRelease"), { description = "AeroSpace: Toggle overview" })
+hl.bind("ALT + Alt_R", hl.dsp.global("quickshell:searchToggleRelease"))
+
+-- Hold Alt to preview workspace names/numbers on the bar (same as holding Super)
+hl.bind("Alt_L", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true })
+hl.bind("Alt_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true })
+hl.bind("Alt_L", hl.dsp.global("quickshell:workspaceNumber"),
+    { ignore_mods = true, transparent = true, release = true })
+hl.bind("Alt_R", hl.dsp.global("quickshell:workspaceNumber"),
+    { ignore_mods = true, transparent = true, release = true })
+
 -- Whether to unbind dots-hyprland's default SUPER + Number workspace binds.
 -- Set to true (recommended) to prevent accidentally triggering the default
 -- 10-workspace group system and ensure a pure AeroSpace workflow.
@@ -62,11 +74,13 @@ for _, key in ipairs(all_workspace_keys) do
     if id then
         -- Focus workspace: ALT + <key>
         hl.bind(workspace_mod .. " + " .. key, function()
+            hl.dispatch(hl.dsp.global("quickshell:searchToggleReleaseInterrupt"))
             hl.dispatch(hl.dsp.focus({ workspace = id }))
         end, { description = "AeroSpace: Focus workspace " .. key })
 
         -- Move window to workspace: ALT + SHIFT + <key>
         hl.bind(workspace_move_mod .. " + " .. key, function()
+            hl.dispatch(hl.dsp.global("quickshell:searchToggleReleaseInterrupt"))
             hl.dispatch(hl.dsp.window.move({ workspace = id, follow = false }))
         end, { description = "AeroSpace: Move to workspace " .. key })
 

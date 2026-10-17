@@ -20,6 +20,7 @@ Item {
     readonly property int effectiveActiveWorkspaceId: Math.max(1, Math.min(100, monitor?.activeWorkspace?.id ?? 1))
     readonly property int workspacesShown: Config.options.overview.rows * Config.options.overview.columns
     readonly property int workspaceGroup: Math.floor((effectiveActiveWorkspaceId - 1) / workspacesShown)
+    readonly property bool dynamicMode: Config.options?.bar?.workspaces?.dynamicWorkspaces ?? false
     property bool monitorIsFocused: (Hyprland.focusedMonitor?.name == monitor.name)
     property var windows: HyprlandData.windowList
     property var windowByAddress: HyprlandData.windowByAddress
@@ -27,6 +28,65 @@ Item {
     property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
     property real scale: Config.options.overview.scale
     property color activeBorderColor: Appearance.colors.colSecondary
+
+    // Build ordered overview workspace list: active letter workspaces first, then numbered workspaces in order (1, 2, 3...)
+    readonly property var overviewWorkspaces: {
+        const count = root.workspacesShown;
+        const winList = root.windows || [];
+        const hyprWsList = Hyprland.workspaces ? Hyprland.workspaces.values : [];
+        const activeId = root.effectiveActiveWorkspaceId;
+        const result = [];
+
+        if (root.dynamicMode) {
+            const configured = Config.options?.bar?.workspaces?.workspaceNames ?? [];
+            const letterOrder = [];
+            for (let i = 0; i < configured.length; ++i) {
+                const n = String(configured[i]).toUpperCase();
+                if (/^[A-Z]$/.test(n) && letterOrder.indexOf(n) === -1) {
+                    letterOrder.push(n);
+                }
+            }
+            for (let c = 65; c <= 90; ++c) {
+                const ch = String.fromCharCode(c);
+                if (letterOrder.indexOf(ch) === -1) {
+                    letterOrder.push(ch);
+                }
+            }
+
+            // 1. Active (occupied or focused) letter workspaces first
+            for (let i = 0; i < letterOrder.length; ++i) {
+                const name = letterOrder[i];
+                const wsId = name.charCodeAt(0) - 65 + 11;
+                const hasWindows = winList.some(win => win?.workspace && (win.workspace.id === wsId || win.workspace.name === name))
+                    || hyprWsList.some(ws => (ws.id === wsId || ws.name === name) && ws.toplevels && ws.toplevels.values.length > 0);
+                const isActive = (wsId === activeId);
+                if (hasWindows || isActive) {
+                    result.push({ wsId: wsId, name: name });
+                }
+            }
+
+            // 2. Numbered workspaces in order (1, 2, 3...)
+            let num = 1;
+            while (result.length < count) {
+                result.push({ wsId: num, name: String(num) });
+                num++;
+            }
+
+            // Ensure currently focused workspace is visible in the grid
+            const trimmed = result.slice(0, count);
+            if (!trimmed.some(w => w.wsId === activeId) && activeId > 0) {
+                const label = (activeId >= 11 && activeId <= 36) ? String.fromCharCode(activeId - 11 + 65) : String(activeId);
+                trimmed[count - 1] = { wsId: activeId, name: label };
+            }
+            return trimmed;
+        }
+
+        for (let i = 0; i < count; ++i) {
+            const wsId = root.workspaceGroup * count + i + 1;
+            result.push({ wsId: wsId, name: String(wsId) });
+        }
+        return result;
+    }
 
     property real workspaceImplicitWidth: (monitorData?.transform % 2 === 1) ? 
         ((monitor.height - monitorData?.reserved[0] - monitorData?.reserved[2]) * root.scale / monitor.scale) :
@@ -53,18 +113,27 @@ Item {
     property Component windowComponent: OverviewWindow {}
     property list<OverviewWindow> windowWidgets: []
     
+    function getCellIndexForWs(ws) {
+        if (root.dynamicMode && root.overviewWorkspaces && root.overviewWorkspaces.length > 0) {
+            const idx = root.overviewWorkspaces.findIndex(item => item.wsId === ws);
+            return idx !== -1 ? idx : 0;
+        }
+        return ((ws - 1) % root.workspacesShown + root.workspacesShown) % root.workspacesShown;
+    }
     function getWsRow(ws) {
         // 1-indexed workspace, 0-indexed row
-        var normalRow = Math.floor((ws - 1) / Config.options.overview.columns) % Config.options.overview.rows;
+        var cellIdx = getCellIndexForWs(ws);
+        var normalRow = Math.floor(cellIdx / Config.options.overview.columns) % Config.options.overview.rows;
         return (Config.options.overview.orderBottomUp ? Config.options.overview.rows - normalRow - 1 : normalRow);
     }
     function getWsColumn(ws) {
         // 1-indexed workspace, 0-indexed column
-        var normalCol = (ws - 1) % Config.options.overview.columns;
+        var cellIdx = getCellIndexForWs(ws);
+        var normalCol = cellIdx % Config.options.overview.columns;
         return (Config.options.overview.orderRightLeft ? Config.options.overview.columns - normalCol - 1 : normalCol);
     }
     function getWsInCell(ri, ci) {
-        // 1-indexed workspace, 0-indexed row and column index
+        // 1-indexed cell position, 0-indexed row and column index
         return (Config.options.overview.orderBottomUp ? Config.options.overview.rows - ri - 1 : ri) * Config.options.overview.columns + (Config.options.overview.orderRightLeft ? Config.options.overview.columns - ci - 1 : ci) + 1
     }
 
@@ -102,7 +171,13 @@ Item {
                             id: workspace
                             required property int index
                             property int colIndex: index
-                            property int workspaceValue: root.workspaceGroup * root.workspacesShown + getWsInCell(row.index, colIndex)
+                            property int cellIndex: getWsInCell(row.index, colIndex) - 1
+                            property int workspaceValue: root.dynamicMode
+                                ? (root.overviewWorkspaces[cellIndex]?.wsId ?? (cellIndex + 1))
+                                : (root.workspaceGroup * root.workspacesShown + getWsInCell(row.index, colIndex))
+                            property string workspaceLabel: root.dynamicMode
+                                ? (root.overviewWorkspaces[cellIndex]?.name ?? String(workspaceValue))
+                                : String(workspaceValue)
                             property color defaultWorkspaceColor: Appearance.colors.colSurfaceContainerLow
                             property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
                             property color hoveredBorderColor: Appearance.colors.colLayer2Hover
@@ -121,19 +196,6 @@ Item {
                             bottomRightRadius: (workspaceAtRight && workspaceAtBottom) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
                             border.width: 2
                             border.color: hoveredWhileDragging ? hoveredBorderColor : "transparent"
-
-                            StyledText {
-                                anchors.centerIn: parent
-                                text: workspace.workspaceValue
-                                font {
-                                    pixelSize: root.workspaceNumberSize * root.scale
-                                    weight: Font.DemiBold
-                                    family: Appearance.font.family.expressive
-                                }
-                                color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.8)
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
 
                             MouseArea {
                                 id: workspaceArea
@@ -179,6 +241,9 @@ Item {
                         return ToplevelManager.toplevels.values.filter((toplevel) => {
                             const address = `0x${toplevel.HyprlandToplevel?.address}`
                             var win = windowByAddress[address]
+                            if (root.dynamicMode) {
+                                return root.overviewWorkspaces.some(item => item.wsId === win?.workspace?.id);
+                            }
                             const inWorkspaceGroup = (root.workspaceGroup * root.workspacesShown < win?.workspace?.id && win?.workspace?.id <= (root.workspaceGroup + 1) * root.workspacesShown)
                             return inWorkspaceGroup;
                         })
@@ -338,6 +403,53 @@ Item {
                 }
                 Behavior on bottomRightRadius {
                     animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
+                }
+            }
+
+            Column { // Workspace labels rendered overtop of overview windows
+                z: root.windowZ + 10
+                anchors.centerIn: parent
+                spacing: workspaceSpacing
+
+                Repeater {
+                    model: Config.options.overview.rows
+                    delegate: Row {
+                        id: labelRow
+                        required property int index
+                        spacing: workspaceSpacing
+
+                        Repeater {
+                            model: Config.options.overview.columns
+                            delegate: Item {
+                                required property int index
+                                property int cellIndex: getWsInCell(labelRow.index, index) - 1
+                                property int workspaceValue: root.dynamicMode
+                                    ? (root.overviewWorkspaces[cellIndex]?.wsId ?? (cellIndex + 1))
+                                    : (root.workspaceGroup * root.workspacesShown + getWsInCell(labelRow.index, index))
+                                property string workspaceLabel: root.dynamicMode
+                                    ? (root.overviewWorkspaces[cellIndex]?.name ?? String(workspaceValue))
+                                    : String(workspaceValue)
+
+                                implicitWidth: root.workspaceImplicitWidth
+                                implicitHeight: root.workspaceImplicitHeight
+
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    text: parent.workspaceLabel
+                                    font {
+                                        pixelSize: root.workspaceNumberSize * root.scale
+                                        weight: Font.DemiBold
+                                        family: Appearance.font.family.expressive
+                                    }
+                                    color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.5)
+                                    style: Text.Outline
+                                    styleColor: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.5)
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

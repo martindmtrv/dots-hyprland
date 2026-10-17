@@ -24,10 +24,15 @@ reload_services() {
         hyprctl reload || true
     fi
 
-    if pgrep -x "quickshell" &>/dev/null || pgrep -x "qs" &>/dev/null; then
+    if command -v qs &>/dev/null; then
         echo "==> Restarting Quickshell..."
         killall qs quickshell 2>/dev/null || true
-        nohup qs -c ii >/dev/null 2>&1 &
+        sleep 0.3
+        if command -v hyprctl &>/dev/null && hyprctl monitors &>/dev/null; then
+            hyprctl dispatch 'hl.dsp.exec_cmd("qs -c ii")' >/dev/null 2>&1 || hyprctl dispatch exec "qs -c ii" >/dev/null 2>&1 || (nohup qs -c ii >/dev/null 2>&1 &)
+        else
+            nohup qs -c ii >/dev/null 2>&1 &
+        fi
     fi
 }
 
@@ -119,11 +124,15 @@ do_revert() {
         for file in "modules/common/Config.qml" \
                     "modules/common/models/WorkspaceModel.qml" \
                     "modules/ii/bar/Workspaces.qml" \
+                    "modules/ii/overview/OverviewWidget.qml" \
                     "modules/settings/BarConfig.qml"; do
             if [ -f "$LATEST_BACKUP/quickshell/$file" ]; then
                 echo "==> Restoring $QUICKSHELL_DIR/$file"
                 mkdir -p "$(dirname "$QUICKSHELL_DIR/$file")"
                 cp -f "$LATEST_BACKUP/quickshell/$file" "$QUICKSHELL_DIR/$file"
+            elif [ -f "$QUICKSHELL_DIR/$file" ]; then
+                echo "==> Removing $QUICKSHELL_DIR/$file (did not exist before apply)"
+                rm -f "$QUICKSHELL_DIR/$file"
             fi
         done
     fi
@@ -158,42 +167,47 @@ except Exception:
 do_apply() {
     echo "==> Preparing to apply AeroSpace dynamic named workspaces..."
 
-    # Create backup directory timestamped and link latest
-    TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-    BACKUP_DIR="$BACKUP_BASE_DIR/$TIMESTAMP"
-    mkdir -p "$BACKUP_DIR/quickshell"
+    if [ ! -d "$LATEST_BACKUP" ] || [ ! -f "$QUICKSHELL_DIR/modules/common/models/WorkspaceModel.qml" ]; then
+        # Create backup directory timestamped and link latest
+        TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+        BACKUP_DIR="$BACKUP_BASE_DIR/$TIMESTAMP"
+        mkdir -p "$BACKUP_DIR/quickshell"
 
-    echo "==> Creating backup in $BACKUP_DIR..."
+        echo "==> Creating backup in $BACKUP_DIR..."
 
-    # 1. Backup Hyprland custom keybinds
-    if [ -f "$HYPR_CUSTOM_DIR/keybinds.lua" ]; then
-        cp -f "$HYPR_CUSTOM_DIR/keybinds.lua" "$BACKUP_DIR/keybinds.lua"
+        # 1. Backup Hyprland custom keybinds
+        if [ -f "$HYPR_CUSTOM_DIR/keybinds.lua" ]; then
+            cp -f "$HYPR_CUSTOM_DIR/keybinds.lua" "$BACKUP_DIR/keybinds.lua"
+        else
+            touch "$BACKUP_DIR/.keybinds_did_not_exist"
+        fi
+
+        # 2. Backup Quickshell components
+        if [ -d "$QUICKSHELL_DIR" ]; then
+            for file in "modules/common/Config.qml" \
+                        "modules/common/models/WorkspaceModel.qml" \
+                        "modules/ii/bar/Workspaces.qml" \
+                        "modules/ii/overview/OverviewWidget.qml" \
+                        "modules/settings/BarConfig.qml"; do
+                if [ -f "$QUICKSHELL_DIR/$file" ]; then
+                    mkdir -p "$(dirname "$BACKUP_DIR/quickshell/$file")"
+                    cp -f "$QUICKSHELL_DIR/$file" "$BACKUP_DIR/quickshell/$file"
+                fi
+            done
+        fi
+
+        # 3. Backup config.json
+        if [ -f "$II_CONFIG_FILE" ]; then
+            cp -f "$II_CONFIG_FILE" "$BACKUP_DIR/config.json"
+        fi
+
+        # Update 'latest' symlink
+        rm -rf "$LATEST_BACKUP"
+        ln -sfn "$BACKUP_DIR" "$LATEST_BACKUP"
+        echo "==> Backup created and linked to $LATEST_BACKUP"
     else
-        touch "$BACKUP_DIR/.keybinds_did_not_exist"
+        echo "==> Already applied; preserving existing clean backup at $LATEST_BACKUP"
     fi
-
-    # 2. Backup Quickshell components
-    if [ -d "$QUICKSHELL_DIR" ]; then
-        for file in "modules/common/Config.qml" \
-                    "modules/common/models/WorkspaceModel.qml" \
-                    "modules/ii/bar/Workspaces.qml" \
-                    "modules/settings/BarConfig.qml"; do
-            if [ -f "$QUICKSHELL_DIR/$file" ]; then
-                mkdir -p "$(dirname "$BACKUP_DIR/quickshell/$file")"
-                cp -f "$QUICKSHELL_DIR/$file" "$BACKUP_DIR/quickshell/$file"
-            fi
-        done
-    fi
-
-    # 3. Backup config.json
-    if [ -f "$II_CONFIG_FILE" ]; then
-        cp -f "$II_CONFIG_FILE" "$BACKUP_DIR/config.json"
-    fi
-
-    # Update 'latest' symlink
-    rm -rf "$LATEST_BACKUP"
-    ln -sfn "$BACKUP_DIR" "$LATEST_BACKUP"
-    echo "==> Backup created and linked to $LATEST_BACKUP"
 
     # --- APPLY CHANGES ---
 
@@ -212,6 +226,7 @@ do_apply() {
         cp -f "$SCRIPT_DIR/dots/.config/quickshell/ii/modules/common/Config.qml" "$QUICKSHELL_DIR/modules/common/Config.qml"
         cp -f "$SCRIPT_DIR/dots/.config/quickshell/ii/modules/common/models/WorkspaceModel.qml" "$QUICKSHELL_DIR/modules/common/models/WorkspaceModel.qml"
         cp -f "$SCRIPT_DIR/dots/.config/quickshell/ii/modules/ii/bar/Workspaces.qml" "$QUICKSHELL_DIR/modules/ii/bar/Workspaces.qml"
+        cp -f "$SCRIPT_DIR/dots/.config/quickshell/ii/modules/ii/overview/OverviewWidget.qml" "$QUICKSHELL_DIR/modules/ii/overview/OverviewWidget.qml"
         cp -f "$SCRIPT_DIR/dots/.config/quickshell/ii/modules/settings/BarConfig.qml" "$QUICKSHELL_DIR/modules/settings/BarConfig.qml"
     fi
 
@@ -236,8 +251,8 @@ if 'workspaces' not in data['bar']:
 data['bar']['workspaces']['dynamicWorkspaces'] = True
 data['bar']['workspaces']['workspaceNames'] = [
     'C', 'V', 'D', 'P', 'A', 'T', 'Z', 'S',
-    '1', '2', '3', '4', '5', '6', '7', '8', '9',
-    'B', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'Q', 'R', 'U', 'W', 'X', 'Y'
+    'B', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'Q', 'R', 'U', 'W', 'X', 'Y',
+    '1', '2', '3', '4', '5', '6', '7', '8', '9'
 ]
 data['bar']['workspaces']['showActiveEvenIfEmpty'] = True
 
