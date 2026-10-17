@@ -115,9 +115,25 @@ Column {
         return bind.description.indexOf(":") === -1;
     }
 
+    function isWorkspaceBind(bind) {
+        if (!bind || !bind.description) return false;
+        const desc = bind.description;
+        return (desc.startsWith("Workspace: Focus") || 
+                desc.startsWith("Workspace: Move window to") || 
+                desc.startsWith("Workspaces: Focus") || 
+                desc.startsWith("Workspaces: Move window to")) &&
+               !desc.includes("left") && !desc.includes("right");
+    }
+
     function containsNonFirstRepetitive(bind) {
         const key = bind.key;
         if (key.includes("mouse") || key.includes("page")) return false;
+        // Workspace binds: keep only the first workspace bind for each modmask
+        if (isWorkspaceBind(bind)) {
+            const allBinds = HyprlandKeybinds.keybinds;
+            const firstWsBind = allBinds.find(b => isWorkspaceBind(b) && b.modmask === bind.modmask);
+            if (firstWsBind && firstWsBind.key !== bind.key) return true;
+        }
         // Contains non-1 number
         if (/\d/.test(key) && !key.includes("1")) return true;
         // Contains non-left direction
@@ -127,10 +143,13 @@ Column {
 
     function containsFirstRepetitive(bind) {
         const key = bind.key;
-        return key.includes("1") || /left/i.test(key);
+        return key.includes("1") || /left/i.test(key) || isWorkspaceBind(bind);
     }
 
-    function transformKey(key) {
+    function transformKey(key, bind) {
+        if (bind && isWorkspaceBind(bind)) {
+            return "a-z 1-9";
+        }
         const replaced = root.keySubstitutions[key] || key;
         const denumbered = replaced.replace("1", "<Number>");
         const dedirectioned = denumbered.replace("Left", "<Direction>");
@@ -141,6 +160,10 @@ Column {
         const description = bind.description
         const regex = new RegExp("\\s*" + categoryName + "\\s*:\\s*");
         const decategorized = description.replace(regex, "");
+        if (isWorkspaceBind(bind)) {
+            if (decategorized.toLowerCase().includes("move")) return "Move window to workspace";
+            return "Focus workspace";
+        }
         if (!containsFirstRepetitive(bind)) return decategorized;
         const denumbered = decategorized.replace("1", "<Number>");
         const dedirectioned = denumbered.replace(/ \b(left|right|up|down)\b/i, " <Direction>");
@@ -200,7 +223,7 @@ Column {
                     id: keybindKey
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !keyBlacklist.includes(bindLine.keyData.key)
-                    key: root.transformKey(bindLine.keyData.key)
+                    key: root.transformKey(bindLine.keyData.key, bindLine.keyData)
                     pixelSize: Config.options.cheatsheet.fontSize.key
                     color: Appearance.colors.colOnLayer0
                 }

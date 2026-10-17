@@ -125,7 +125,8 @@ do_revert() {
                     "modules/common/models/WorkspaceModel.qml" \
                     "modules/ii/bar/Workspaces.qml" \
                     "modules/ii/overview/OverviewWidget.qml" \
-                    "modules/settings/BarConfig.qml"; do
+                    "modules/settings/BarConfig.qml" \
+                    "modules/ii/cheatsheet/CheatsheetKeybindsCategory.qml"; do
             if [ -f "$LATEST_BACKUP/quickshell/$file" ]; then
                 echo "==> Restoring $QUICKSHELL_DIR/$file"
                 mkdir -p "$(dirname "$QUICKSHELL_DIR/$file")"
@@ -188,7 +189,8 @@ do_apply() {
                         "modules/common/models/WorkspaceModel.qml" \
                         "modules/ii/bar/Workspaces.qml" \
                         "modules/ii/overview/OverviewWidget.qml" \
-                        "modules/settings/BarConfig.qml"; do
+                        "modules/settings/BarConfig.qml" \
+                        "modules/ii/cheatsheet/CheatsheetKeybindsCategory.qml"; do
                 if [ -f "$QUICKSHELL_DIR/$file" ]; then
                     mkdir -p "$(dirname "$BACKUP_DIR/quickshell/$file")"
                     cp -f "$QUICKSHELL_DIR/$file" "$BACKUP_DIR/quickshell/$file"
@@ -228,6 +230,7 @@ do_apply() {
         cp -f "$SCRIPT_DIR/dots/.config/quickshell/ii/modules/ii/bar/Workspaces.qml" "$QUICKSHELL_DIR/modules/ii/bar/Workspaces.qml"
         cp -f "$SCRIPT_DIR/dots/.config/quickshell/ii/modules/ii/overview/OverviewWidget.qml" "$QUICKSHELL_DIR/modules/ii/overview/OverviewWidget.qml"
         cp -f "$SCRIPT_DIR/dots/.config/quickshell/ii/modules/settings/BarConfig.qml" "$QUICKSHELL_DIR/modules/settings/BarConfig.qml"
+        cp -f "$SCRIPT_DIR/dots/.config/quickshell/ii/modules/ii/cheatsheet/CheatsheetKeybindsCategory.qml" "$QUICKSHELL_DIR/modules/ii/cheatsheet/CheatsheetKeybindsCategory.qml"
     fi
 
     # 3. Enable in ~/.config/illogical-impulse/config.json
