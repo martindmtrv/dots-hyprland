@@ -29,6 +29,28 @@ Item {
     property real scale: Config.options.overview.scale
     property color activeBorderColor: Appearance.colors.colSecondary
 
+    readonly property var canonicalWorkspaceOrder: [
+        "C", "V", "D", "P", "A", "T", "Z", "S",
+        "B", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "Q", "R", "U", "W", "X", "Y",
+        "1", "2", "3", "4", "5", "6", "7", "8", "9"
+    ]
+
+    function getWsIdForName(name) {
+        const upper = String(name).toUpperCase();
+        const foundIdx = root.canonicalWorkspaceOrder.indexOf(upper);
+        if (foundIdx !== -1) return foundIdx + 1;
+        const num = parseInt(name, 10);
+        if (!isNaN(num) && num >= 10) return 26 + num;
+        return 1;
+    }
+
+    function getNameForWsId(wsId) {
+        if (wsId >= 1 && wsId <= root.canonicalWorkspaceOrder.length) {
+            return root.canonicalWorkspaceOrder[wsId - 1];
+        }
+        return String(wsId);
+    }
+
     // Build ordered overview workspace list: active letter workspaces first, then numbered workspaces in order (1, 2, 3...)
     readonly property var overviewWorkspaces: {
         const count = root.workspacesShown;
@@ -46,9 +68,9 @@ Item {
                     letterOrder.push(n);
                 }
             }
-            for (let c = 65; c <= 90; ++c) {
-                const ch = String.fromCharCode(c);
-                if (letterOrder.indexOf(ch) === -1) {
+            for (let i = 0; i < root.canonicalWorkspaceOrder.length; ++i) {
+                const ch = root.canonicalWorkspaceOrder[i];
+                if (/^[A-Z]$/.test(ch) && letterOrder.indexOf(ch) === -1) {
                     letterOrder.push(ch);
                 }
             }
@@ -56,9 +78,9 @@ Item {
             // 1. Active (occupied or focused) letter workspaces first
             for (let i = 0; i < letterOrder.length; ++i) {
                 const name = letterOrder[i];
-                const wsId = name.charCodeAt(0) - 65 + 11;
-                const hasWindows = winList.some(win => win?.workspace && (win.workspace.id === wsId || win.workspace.name === name))
-                    || hyprWsList.some(ws => (ws.id === wsId || ws.name === name) && ws.toplevels && ws.toplevels.values.length > 0);
+                const wsId = root.getWsIdForName(name);
+                const hasWindows = winList.some(win => win?.workspace && win.workspace.id === wsId)
+                    || hyprWsList.some(ws => ws.id === wsId && ws.toplevels && ws.toplevels.values.length > 0);
                 const isActive = (wsId === activeId);
                 if (hasWindows || isActive) {
                     result.push({ wsId: wsId, name: name });
@@ -68,14 +90,16 @@ Item {
             // 2. Numbered workspaces in order (1, 2, 3...)
             let num = 1;
             while (result.length < count) {
-                result.push({ wsId: num, name: String(num) });
+                const name = String(num);
+                const wsId = root.getWsIdForName(name);
+                result.push({ wsId: wsId, name: name });
                 num++;
             }
 
             // Ensure currently focused workspace is visible in the grid
             const trimmed = result.slice(0, count);
             if (!trimmed.some(w => w.wsId === activeId) && activeId > 0) {
-                const label = (activeId >= 11 && activeId <= 36) ? String.fromCharCode(activeId - 11 + 65) : String(activeId);
+                const label = root.getNameForWsId(activeId);
                 trimmed[count - 1] = { wsId: activeId, name: label };
             }
             return trimmed;

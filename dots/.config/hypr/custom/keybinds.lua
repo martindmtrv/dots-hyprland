@@ -49,68 +49,81 @@ if unbind_default_super_workspaces then
     end
 end
 
--- Helper to assign unique, valid workspace IDs (1..100)
--- Numbers 1-9 -> IDs 1-9
--- Letters A-Z -> IDs 11-36
-local function get_workspace_id(key)
-    local num = tonumber(key)
-    if num and num >= 1 and num <= 9 then
-        return num
-    end
-    local byte = string.byte(string.upper(key))
-    if byte >= 65 and byte <= 90 then -- A-Z
-        return (byte - 65) + 11
-    end
-    return nil
+-- Ensure touchpad swiping only cycles through active/occupied workspaces
+-- in the exact order they appear in the Quickshell bar (without creating random new ones at the end).
+hl.config({
+    gestures = {
+        workspace_swipe_create_new = false,
+        workspace_swipe_use_r = false
+    }
+})
+
+-- Rebind relative workspace step shortcuts (Ctrl+Super+Left/Right, Super+PageUp/PageDown, Super+Scroll)
+-- to step through existing workspaces on the monitor (m-1 / m+1) in top-bar order.
+for _, combo in ipairs({
+    { "CTRL + SUPER + Left", "m-1" },
+    { "CTRL + SUPER + Right", "m+1" },
+    { "SUPER + Page_Up", "m-1" },
+    { "SUPER + Page_Down", "m+1" },
+    { "CTRL + SUPER + Page_Up", "m-1" },
+    { "CTRL + SUPER + Page_Down", "m+1" },
+    { "SUPER + mouse_up", "m-1" },
+    { "SUPER + mouse_down", "m+1" },
+    { "CTRL + SUPER + mouse_up", "m-1" },
+    { "CTRL + SUPER + mouse_down", "m+1" }
+}) do
+    pcall(function() hl.unbind(combo[1]) end)
+    hl.bind(combo[1], hl.dsp.focus({ workspace = combo[2] }))
 end
 
--- All supported workspace keys: 1-9 and A-Z
+-- Ordered list of workspace keys matching the Quickshell top bar and overview order:
+-- Priority letters -> remaining letters (A-Z) -> numbers (1-9).
+-- Assigning sequential Hyprland IDs (1..35) in this exact order ensures that
+-- Hyprland's native touchpad swipe and animations follow the exact bar order.
 local all_workspace_keys = {
+    -- Priority letters
+    "C", "V", "D", "P", "A", "T", "Z", "S",
+    -- Remaining letters
+    "B", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "Q", "R", "U", "W", "X", "Y",
     -- Numbers
-    "1", "2", "3", "4", "5", "6", "7", "8", "9",
-    -- Letters
-    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-    "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
+    "1", "2", "3", "4", "5", "6", "7", "8", "9"
 }
 
 local move_locked = false
 
-for _, key in ipairs(all_workspace_keys) do
-    local id = get_workspace_id(key)
-    if id then
-        local bind_key = string.lower(key)
+for id, key in ipairs(all_workspace_keys) do
+    local bind_key = string.lower(key)
 
-        -- Ensure no duplicate binds remain across config reloads
-        pcall(function() hl.unbind(workspace_mod .. " + " .. key) end)
-        pcall(function() hl.unbind(workspace_mod .. " + " .. bind_key) end)
-        pcall(function() hl.unbind(workspace_move_mod .. " + " .. key) end)
-        pcall(function() hl.unbind(workspace_move_mod .. " + " .. bind_key) end)
+    -- Ensure no duplicate binds remain across config reloads
+    pcall(function() hl.unbind(workspace_mod .. " + " .. key) end)
+    pcall(function() hl.unbind(workspace_mod .. " + " .. bind_key) end)
+    pcall(function() hl.unbind(workspace_move_mod .. " + " .. key) end)
+    pcall(function() hl.unbind(workspace_move_mod .. " + " .. bind_key) end)
 
-        -- Focus workspace: ALT + <key>
-        hl.bind(workspace_mod .. " + " .. bind_key, function()
-            hl.dispatch(hl.dsp.global("quickshell:searchToggleReleaseInterrupt"))
-            hl.dispatch(hl.dsp.focus({ workspace = id }))
-        end, { description = "AeroSpace: Focus workspace " .. key })
+    -- Focus workspace: ALT + <key>
+    hl.bind(workspace_mod .. " + " .. bind_key, function()
+        hl.dispatch(hl.dsp.global("quickshell:searchToggleReleaseInterrupt"))
+        hl.dispatch(hl.dsp.focus({ workspace = id }))
+    end, { description = "AeroSpace: Focus workspace " .. key })
 
-        -- Move window to workspace: ALT + SHIFT + <key>
-        hl.bind(workspace_move_mod .. " + " .. bind_key, function()
-            hl.dispatch(hl.dsp.global("quickshell:searchToggleReleaseInterrupt"))
-            if move_locked then
-                return
-            end
-            move_locked = true
-            hl.timer(function()
-                move_locked = false
-            end, { timeout = 200, type = "oneshot" })
-            hl.dispatch(hl.dsp.window.move({ workspace = id, follow = false }))
-        end, { description = "AeroSpace: Move to workspace " .. key })
+    -- Move window to workspace: ALT + SHIFT + <key>
+    hl.bind(workspace_move_mod .. " + " .. bind_key, function()
+        hl.dispatch(hl.dsp.global("quickshell:searchToggleReleaseInterrupt"))
+        if move_locked then
+            return
+        end
+        move_locked = true
+        hl.timer(function()
+            move_locked = false
+        end, { timeout = 200, type = "oneshot" })
+        hl.dispatch(hl.dsp.window.move({ workspace = id, follow = false }))
+    end, { description = "AeroSpace: Move to workspace " .. key })
 
-        -- Register workspace name in Hyprland
-        hl.config({
-            workspace = {
-                string.format("%d, defaultName:%s", id, key)
-            }
-        })
-    end
+    -- Register workspace name in Hyprland
+    hl.config({
+        workspace = {
+            string.format("%d, defaultName:%s", id, key)
+        }
+    })
 end
 -- <<< END AEROSPACE WORKSPACES <<<

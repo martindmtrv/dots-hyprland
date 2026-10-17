@@ -57,27 +57,39 @@ NestableObject {
         }
     }
 
+    readonly property var canonicalWorkspaceOrder: [
+        "C", "V", "D", "P", "A", "T", "Z", "S",
+        "B", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "Q", "R", "U", "W", "X", "Y",
+        "1", "2", "3", "4", "5", "6", "7", "8", "9"
+    ]
+
     function getWsIdForName(name, idx) {
-        if (/^[1-9]$/.test(name)) return parseInt(name, 10);
-        if (/^[A-Za-z]$/.test(name)) return name.toUpperCase().charCodeAt(0) - 65 + 11;
+        const upper = String(name).toUpperCase();
+        const foundIdx = root.canonicalWorkspaceOrder.indexOf(upper);
+        if (foundIdx !== -1) return foundIdx + 1;
         return idx + 1;
+    }
+
+    function getNameForWsId(wsId) {
+        if (wsId >= 1 && wsId <= root.canonicalWorkspaceOrder.length) {
+            return root.canonicalWorkspaceOrder[wsId - 1];
+        }
+        return String(wsId);
     }
 
     function updateDynamicWorkspaces() {
         const names = root.configuredWorkspaceNames || [];
         const result = [];
         const activeId = root.activeWorkspace;
-        const activeWs = Hyprland.workspaces ? Hyprland.workspaces.values.find(w => w.id === activeId) : null;
-        const activeName = activeWs?.name ?? "";
 
         for (let i = 0; i < names.length; ++i) {
             const name = names[i];
             const wsId = root.getWsIdForName(name, i);
 
-            const hasWindows = (HyprlandData.windowList && HyprlandData.windowList.some(win => win.workspace && (win.workspace.id === wsId || win.workspace.name === name))) ||
-                (Hyprland.workspaces && Hyprland.workspaces.values.some(ws => (ws.id === wsId || ws.name === name) && ws.toplevels && ws.toplevels.values.length > 0));
+            const hasWindows = (HyprlandData.windowList && HyprlandData.windowList.some(win => win.workspace && win.workspace.id === wsId)) ||
+                (Hyprland.workspaces && Hyprland.workspaces.values.some(ws => ws.id === wsId && ws.toplevels && ws.toplevels.values.length > 0));
 
-            const isActive = (wsId === activeId || (activeName !== "" && name === activeName));
+            const isActive = (wsId === activeId);
 
             if (hasWindows || (isActive && root.showActiveEvenIfEmpty)) {
                 result.push({
@@ -90,11 +102,11 @@ NestableObject {
         }
 
         // If currently focused workspace is not in the list, still show it so the user is never lost
-        const isCurrentInResult = result.some(w => w.wsId === activeId || (activeName && w.name === activeName));
+        const isCurrentInResult = result.some(w => w.wsId === activeId);
         if (root.showActiveEvenIfEmpty && !isCurrentInResult && activeId > 0) {
             result.push({
                 wsId: activeId,
-                name: activeName || String(activeId),
+                name: root.getNameForWsId(activeId),
                 occupied: false,
                 active: true
             });
