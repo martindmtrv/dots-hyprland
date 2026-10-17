@@ -74,6 +74,9 @@ NestableObject {
         if (wsId >= 1 && wsId <= root.canonicalWorkspaceOrder.length) {
             return root.canonicalWorkspaceOrder[wsId - 1];
         }
+        if (wsId > root.canonicalWorkspaceOrder.length) {
+            return String(wsId - 26);
+        }
         return String(wsId);
     }
 
