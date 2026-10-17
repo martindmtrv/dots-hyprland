@@ -71,6 +71,8 @@ Column {
         "Slash": "/",
         "Hash": "#",
         "Return": "Enter",
+        "Grave": "`",
+        "grave": "`",
         // "Shift": "",
       },
       !!Config.options.cheatsheet.superKey ? {
