@@ -1,0 +1,21 @@
+theme = Adwaita Dark
+background = #000000
+foreground = #ffffff
+
+# Sets the horizontal and vertical padding
+window-padding-x = 10
+window-padding-y = 10
+
+# Optional: Ensure padding is balanced even if it doesn't 
+# align perfectly with the character grid
+window-padding-balance = true
+
+# 1. Copy the scrollback content to clipboard
+keybind = alt+super+c=write_scrollback_file:copy
+
+# 2. Open nvim and paste the buffer into it
+# We use '-' to tell nvim to read from stdin, and pipe wl-paste into it
+keybind = alt+super+c=text:wl-paste | nvim -\r
+
+# Unbind Ctrl+Enter (default: toggle_fullscreen) to pass through to applications like Claude Code
+keybind = ctrl+enter=unbind
