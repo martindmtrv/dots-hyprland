@@ -20,7 +20,7 @@ NestableObject {
     readonly property bool specialWorkspaceActive: specialWorkspaceName !== ""
 
     readonly property bool dynamicMode: C.Config.options?.bar?.workspaces?.dynamicWorkspaces ?? false
-    readonly property var configuredWorkspaceNames: C.Config.options?.bar?.workspaces?.workspaceNames ?? ["C", "V", "D", "P", "A", "T", "Z", "S"]
+    readonly property var configuredWorkspaceNames: C.Config.options?.bar?.workspaces?.workspaceNames ?? ["C", "V", "T", "D", "A", "P", "Z", "S"]
     readonly property bool showActiveEvenIfEmpty: C.Config.options?.bar?.workspaces?.showActiveEvenIfEmpty ?? true
 
     property var visibleWorkspaces: []
@@ -58,7 +58,7 @@ NestableObject {
     }
 
     readonly property var canonicalWorkspaceOrder: [
-        "C", "V", "D", "P", "A", "T", "Z", "S",
+        "C", "V", "T", "D", "A", "P", "Z", "S",
         "B", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "Q", "R", "U", "W", "X", "Y",
         "1", "2", "3", "4", "5", "6", "7", "8", "9"
     ]

@@ -188,7 +188,7 @@ end
 --------------------------------------------------------------------------------
 local all_workspace_keys = {
     -- Priority letters
-    "C", "V", "D", "P", "A", "T", "Z", "S",
+    "C", "V", "T", "D", "A", "P", "Z", "S",
     -- Remaining letters
     "B", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "Q", "R", "U", "W", "X", "Y",
     -- Numbers
@@ -205,9 +205,9 @@ for id, key in ipairs(all_workspace_keys) do
     pcall(function() hl.unbind(workspace_move_mod .. " + " .. key) end)
     pcall(function() hl.unbind(workspace_move_mod .. " + " .. bind_key) end)
 
-    local is_first = (id == 1)
-    local focus_desc = is_first and { description = "Workspace: Focus workspace" } or {}
-    local move_desc = is_first and { description = "Workspace: Move window to workspace" } or {}
+    local is_default = (key == "T")
+    local focus_desc = is_default and { description = "Workspace: Focus workspace" } or {}
+    local move_desc = is_default and { description = "Workspace: Move window to workspace" } or {}
 
     -- Focus workspace: SUPER + <key>
     hl.bind(workspace_mod .. " + " .. bind_key, function()
@@ -231,9 +231,20 @@ for id, key in ipairs(all_workspace_keys) do
     -- Register workspace default name in Hyprland
     hl.workspace_rule({
         workspace = tostring(id),
-        default_name = key
+        default_name = key,
+        default = (key == "T")
     })
 end
+
+-- Focus default workspace (T) on launch
+hl.on("hyprland.start", function()
+    for id, key in ipairs(all_workspace_keys) do
+        if key == "T" then
+            hl.dispatch(hl.dsp.focus({ workspace = id }))
+            break
+        end
+    end
+end)
 
 -- Also register default names for subsequent numbered workspaces (10..24 -> IDs 36..50)
 for num = 10, 24 do

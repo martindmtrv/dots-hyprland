@@ -253,7 +253,7 @@ if 'workspaces' not in data['bar']:
 
 data['bar']['workspaces']['dynamicWorkspaces'] = True
 data['bar']['workspaces']['workspaceNames'] = [
-    'C', 'V', 'D', 'P', 'A', 'T', 'Z', 'S',
+    'C', 'V', 'T', 'D', 'A', 'P', 'Z', 'S',
     'B', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'Q', 'R', 'U', 'W', 'X', 'Y',
     '1', '2', '3', '4', '5', '6', '7', '8', '9'
 ]
