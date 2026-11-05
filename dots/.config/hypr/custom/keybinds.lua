@@ -80,6 +80,8 @@ for _, code in ipairs(numpadkeys) do
     pcall(function() hl.unbind("SUPER + ALT + code:" .. code) end)
 end
 
+local bind_lock = {}
+
 local function safe_bind(combo, action, opts)
     pcall(function() hl.unbind(combo) end)
     local key_part = combo:match("[%w_]+$")
@@ -105,10 +107,30 @@ local function safe_bind(combo, action, opts)
         end
     end
 
+    local final_action = action
+    if combo:find("SUPER") and not combo:find("SUPER_L") and not combo:find("SUPER_R") then
+        final_action = function()
+            hl.dispatch(hl.dsp.global("quickshell:searchToggleReleaseInterrupt"))
+            if bind_lock[combo] then
+                return
+            end
+            bind_lock[combo] = true
+            hl.timer(function()
+                bind_lock[combo] = false
+            end, { timeout = 250, type = "oneshot" })
+
+            if type(action) == "function" then
+                action()
+            else
+                hl.dispatch(action)
+            end
+        end
+    end
+
     if opts then
-        hl.bind(combo, action, opts)
+        hl.bind(combo, final_action, opts)
     else
-        hl.bind(combo, action)
+        hl.bind(combo, final_action)
     end
 end
 
